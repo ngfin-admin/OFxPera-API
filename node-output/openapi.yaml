@@ -10,6 +10,7 @@ servers:
   description: OFxPERA API server
 security:
 - OAuth2: []
+- openFinanceHeaders: []
 tags:
 - name: Admin
   description: Administrative endpoints for organization management
@@ -29,11 +30,23 @@ paths:
       responses:
         "200":
           description: Successfully retrieved organizations
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Organization'
     post:
       tags:
       - Admin
       summary: Register organization URIs
       description: API for registering a participating organization's URIs
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Organization'
+        required: true
       responses:
         "201":
           description: Organization successfully registered
@@ -42,10 +55,12 @@ paths:
       tags:
       - Admin
       summary: Get organization certificate
-      description: API for retrieving a registered organization's certificate
+      description: API for retrieving a registered organization's mTLS certificate
+        for secure communication
       parameters:
       - name: id
         in: path
+        description: The unique identifier of the organization
         required: true
         style: simple
         explode: false
@@ -54,6 +69,18 @@ paths:
       responses:
         "200":
           description: Successfully retrieved certificate
+          content:
+            application/x-pem-file:
+              schema:
+                type: string
+                description: PEM-encoded X.509 certificate
+            application/json:
+              schema:
+                $ref: '#/components/schemas/inline_response_200'
+        "404":
+          description: Organization or certificate not found
+        "400":
+          description: Invalid request
   /oauth/par:
     post:
       tags:
@@ -72,7 +99,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/inline_response_200'
+                $ref: '#/components/schemas/inline_response_200_1'
   /oauth/authorize:
     get:
       tags:
@@ -171,7 +198,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/inline_response_200_1'
+                $ref: '#/components/schemas/inline_response_200_2'
   /oauth/introspection:
     get:
       tags:
@@ -191,7 +218,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/inline_response_200_2'
+                $ref: '#/components/schemas/inline_response_200_3'
   /oauth/userinfo:
     get:
       tags:
@@ -203,7 +230,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/inline_response_200_3'
+                $ref: '#/components/schemas/inline_response_200_4'
       security:
       - OAuth2: []
   /common/consent:
@@ -266,10 +293,18 @@ paths:
     get:
       tags:
       - Common
-      summary: Get customer information
+      summary: Get customer's Personal Information
+      description: (deprecate?) Returns the customer's Personal Information as defined
+        in section 5.2.3
       responses:
         "200":
-          description: Customer information retrieved
+          description: Customer's Personal Information retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PersonalInformation'
+      security:
+      - OAuth2: []
   /common/customer/{id}/detail:
     get:
       tags:
@@ -278,6 +313,8 @@ paths:
       parameters:
       - name: id
         in: path
+        description: "Customer ID, this should map to the sub field returned from\
+          \ the /oauth/userinfo endpoint"
         required: true
         style: simple
         explode: false
@@ -285,7 +322,11 @@ paths:
           type: string
       responses:
         "200":
-          description: Detailed customer information retrieved
+          description: Customer's Personal Information retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PersonalInformation'
   /banking/account:
     get:
       tags:
@@ -425,6 +466,244 @@ paths:
           description: Payment cancelled successfully
 components:
   schemas:
+    Address:
+      required:
+      - city
+      - country
+      - postal_code
+      - province
+      - region
+      type: object
+      properties:
+        region:
+          maxLength: 10
+          type: string
+          description: PSGC Code
+        province:
+          maxLength: 10
+          type: string
+          description: PSGC Code
+        city:
+          maxLength: 10
+          type: string
+          description: PSGC Code
+        barangay:
+          maxLength: 10
+          type: string
+          description: PSGC Code
+        street_address:
+          maxLength: 200
+          type: string
+        country:
+          maxLength: 3
+          type: string
+          description: ISO 3166 Code
+        postal_code:
+          maxLength: 10
+          type: string
+    IdType:
+      required:
+      - idNumber
+      - idType
+      type: object
+      properties:
+        idNumber:
+          maxLength: 50
+          type: string
+        idExpiryDate:
+          maxLength: 10
+          type: string
+          description: Format is YYYY-MM-DD
+          format: date
+        idType:
+          maxLength: 100
+          type: string
+          description: "ID Type (e.g., \"Drivers License\", \"Passport\", etc.)"
+    PersonalInformation:
+      required:
+      - birthdate
+      - email
+      - givenName
+      - lastName
+      - mobileNumber
+      - nationality
+      - peraAdmin
+      - presentedIds
+      - sub
+      type: object
+      properties:
+        sub:
+          maxLength: 50
+          type: string
+          description: Subject – FI's unique identifier for the End-User
+        title:
+          maxLength: 50
+          type: string
+        givenName:
+          maxLength: 50
+          type: string
+        middleName:
+          maxLength: 50
+          type: string
+        lastName:
+          maxLength: 50
+          type: string
+        suffix:
+          maxLength: 10
+          type: string
+        phoneNumber:
+          maxLength: 15
+          pattern: "^[0-9]{11}$"
+          type: string
+          example: "63287654321"
+        mobileNumber:
+          maxLength: 15
+          pattern: "^[0-9]{12}$"
+          type: string
+          example: "639171234567"
+        email:
+          maxLength: 50
+          type: string
+          format: email
+        birthdate:
+          maxLength: 10
+          type: string
+          description: Format YYYY-MM-DD
+          format: date
+        nationality:
+          maxLength: 3
+          type: string
+          description: ISO 3166 Code
+        tin:
+          maxLength: 15
+          pattern: "^[0-9]{3}-[0-9]{3}-[0-9]{3}-[0-9]{3}$"
+          type: string
+          description: Format NNN-NNN-NNN-000
+        presentedIds:
+          type: array
+          description: Array of identification details
+          items:
+            $ref: '#/components/schemas/IdType'
+        cdd:
+          $ref: '#/components/schemas/CustomerDueDiligence'
+        peraAdmin:
+          maxLength: 50
+          type: string
+          description: Selected PERA Admin by Customer FI Codes of PERA admin
+    CustomerDueDiligence:
+      required:
+      - cddIndicator
+      - employmentStatus
+      - fundSource
+      - pepIndicator
+      type: object
+      properties:
+        employmentStatus:
+          maxLength: 50
+          type: string
+        occupation:
+          maxLength: 150
+          type: string
+        natureOfWork:
+          maxLength: 10
+          type: string
+          description: PSIC Code
+        employerName:
+          maxLength: 255
+          type: string
+        employerAddress:
+          $ref: '#/components/schemas/Address'
+        pepIndicator:
+          type: boolean
+          description: Politically Exposed Person 1 - True; 0 - False
+        fundSource:
+          maxLength: 100
+          type: string
+          description: Source of Funds
+        cddIndicator:
+          maxLength: 6
+          type: string
+          description: Customer Due Diligence Risk Level
+          enum:
+          - Low
+          - Normal
+          - High
+    Organization:
+      required:
+      - authorizationServers
+      - businessAddress
+      - contactDetails
+      - organizationId
+      - organizationName
+      - organizationType
+      - registeredName
+      - registeredOfficeAddress
+      type: object
+      properties:
+        organizationId:
+          type: string
+          description: Unique identifier assigned to the organization
+        organizationName:
+          type: string
+          description: Trading name of the organization
+        organizationType:
+          type: string
+          description: Type of organization in the PERA ecosystem
+          enum:
+          - PERA_ADMIN
+          - CONTRIBUTOR_INSTITUTION
+        registeredName:
+          type: string
+          description: Legal registered name of the organization
+        registeredOfficeAddress:
+          $ref: '#/components/schemas/Address'
+        businessAddress:
+          $ref: '#/components/schemas/Address'
+        contactDetails:
+          $ref: '#/components/schemas/Organization_contactDetails'
+        authorizationServers:
+          type: array
+          items:
+            $ref: '#/components/schemas/AuthorizationServer'
+    AuthorizationServer:
+      required:
+      - authorizationEndpoint
+      - authorizationServerId
+      - tokenEndpoint
+      type: object
+      properties:
+        authorizationServerId:
+          type: string
+        authorizationEndpoint:
+          type: string
+          format: uri
+        tokenEndpoint:
+          type: string
+          format: uri
+        registrationEndpoint:
+          type: string
+          format: uri
+    inline_response_200:
+      required:
+      - certificate
+      - subject
+      - validFrom
+      - validUntil
+      type: object
+      properties:
+        certificate:
+          type: string
+          description: PEM-encoded X.509 certificate as a string
+        validFrom:
+          type: string
+          description: Certificate validity start date
+          format: date-time
+        validUntil:
+          type: string
+          description: Certificate validity end date
+          format: date-time
+        subject:
+          $ref: '#/components/schemas/inline_response_200_subject'
     oauth_par_body:
       required:
       - client_id
@@ -450,30 +729,6 @@ components:
           type: string
     inline_response_200_1:
       required:
-      - access_token
-      - expires_in
-      - token_type
-      type: object
-      properties:
-        access_token:
-          type: string
-          description: Access token for the authenticated user.
-        token_type:
-          type: string
-          description: Type of the token.
-          enum:
-          - Bearer
-        expires_in:
-          type: integer
-          description: Expiration time of the access token in seconds.
-        refresh_token:
-          type: string
-          description: Refresh token for obtaining a new access token.
-        scope:
-          type: string
-          description: Scope of the access token.
-    inline_response_200:
-      required:
       - expires_in
       - request_uri
       type: object
@@ -482,58 +737,6 @@ components:
           type: string
         expires_in:
           type: integer
-    inline_response_200_2:
-      required:
-      - active
-      type: object
-      properties:
-        active:
-          type: boolean
-          description: Indicates whether the token is currently active.
-        client_id:
-          type: string
-          description: Client identifier for the token.
-        username:
-          type: string
-          description: Username associated with the token.
-        scope:
-          type: string
-          description: Scope of the token.
-        exp:
-          type: integer
-          description: Expiration timestamp of the token in seconds since epoch.
-        iat:
-          type: integer
-          description: Issued at timestamp of the token in seconds since epoch.
-    inline_response_200_3:
-      type: object
-      properties:
-        sub:
-          type: string
-          description: Unique identifier for the user from the authentication provider's
-            perspective.
-        name:
-          type: string
-          description: Full name of the user.
-        given_name:
-          type: string
-          description: Given name of the user.
-        family_name:
-          type: string
-          description: Family name of the user.
-        email:
-          type: string
-          description: Email address of the user.
-          format: email
-        email_verified:
-          type: boolean
-          description: Indicates whether the user's email address has been verified.
-        phone_number:
-          type: string
-          description: Phone number of the user.
-        phone_number_verified:
-          type: boolean
-          description: Indicates whether the user's phone number has been verified.
     oauth_token_body:
       required:
       - client_id
@@ -563,6 +766,188 @@ components:
         refresh_token:
           type: string
           description: Refresh token used to obtain a new access token.
+    inline_response_200_2:
+      required:
+      - access_token
+      - expires_in
+      - token_type
+      type: object
+      properties:
+        access_token:
+          type: string
+          description: Access token for the authenticated user.
+        token_type:
+          type: string
+          description: Type of the token.
+          enum:
+          - Bearer
+        expires_in:
+          type: integer
+          description: Expiration time of the access token in seconds.
+        refresh_token:
+          type: string
+          description: Refresh token for obtaining a new access token.
+        scope:
+          type: string
+          description: Scope of the access token.
+    inline_response_200_3:
+      required:
+      - active
+      type: object
+      properties:
+        active:
+          type: boolean
+          description: Indicates whether the token is currently active.
+        client_id:
+          type: string
+          description: Client identifier for the token.
+        username:
+          type: string
+          description: Username associated with the token.
+        scope:
+          type: string
+          description: Scope of the token.
+        exp:
+          type: integer
+          description: Expiration timestamp of the token in seconds since epoch.
+        iat:
+          type: integer
+          description: Issued at timestamp of the token in seconds since epoch.
+    inline_response_200_4:
+      type: object
+      properties:
+        sub:
+          type: string
+          description: Unique identifier for the user from the authentication provider's
+            perspective.
+        name:
+          type: string
+          description: Full name of the user.
+        given_name:
+          type: string
+          description: Given name of the user.
+        family_name:
+          type: string
+          description: Family name of the user.
+        email:
+          type: string
+          description: Email address of the user.
+          format: email
+        email_verified:
+          type: boolean
+          description: Indicates whether the user's email address has been verified.
+        phone_number:
+          type: string
+          description: Phone number of the user.
+        phone_number_verified:
+          type: boolean
+          description: Indicates whether the user's phone number has been verified.
+    Organization_contactDetails:
+      required:
+      - email
+      - phone
+      type: object
+      properties:
+        phone:
+          type: string
+        email:
+          type: string
+          format: email
+    inline_response_200_subject:
+      type: object
+      properties:
+        commonName:
+          type: string
+        organizationName:
+          type: string
+        organizationId:
+          type: string
+  parameters:
+    ParticipantId:
+      name: participant-id
+      in: header
+      description: Field referencing the unique identifier of the requesting participant.
+      required: true
+      style: simple
+      explode: false
+      schema:
+        type: string
+    ApiVersion:
+      name: x-v
+      in: header
+      description: Version of the API endpoint requested by the client. Must be set
+        to a positive integer. If the version requested is not supported then the
+        holder must respond with a 406 Not Acceptable.
+      required: true
+      style: simple
+      explode: false
+      schema:
+        minimum: 1
+        type: integer
+    FapiInteractionId:
+      name: x-fapi-interaction-id
+      in: header
+      description: "An [RFC4122] UUID used as a correlation id. If provided, the data\
+        \ holder must play back this value in the x-fapi-interaction-id response header.\
+        \ If not provided a [RFC4122] UUID value is required to be provided in the\
+        \ response header to track the interaction."
+      required: false
+      style: simple
+      explode: false
+      schema:
+        type: string
+        format: uuid
+    FapiAuthDate:
+      name: x-fapi-auth-date
+      in: header
+      description: "The time when the customer last logged in to the Data Recipient\
+        \ Software Product as described in [FAPI-1.0-Baseline]. Required for all resource\
+        \ calls (customer present and unattended). Not required for unauthenticated\
+        \ calls."
+      required: true
+      style: simple
+      explode: false
+      schema:
+        type: string
+        format: date-time
+    FapiCustomerIpAddress:
+      name: x-fapi-customer-ip-address
+      in: header
+      description: The customer's original IP address if the customer is currently
+        logged in to the Data Recipient Software Product. The presence of this header
+        indicates that the API is being called in a customer present context. Not
+        to be included for unauthenticated calls.
+      required: true
+      style: simple
+      explode: false
+      schema:
+        type: string
+        format: ipv4
+    ClientHeaders:
+      name: x-client-headers
+      in: header
+      description: "The customer's original standard http headers Base64 encoded,\
+        \ including the original User-Agent header, if the customer is currently logged\
+        \ in to the Data Recipient Software Product. Mandatory for customer present\
+        \ calls. Not required for unattended or unauthenticated calls."
+      required: false
+      style: simple
+      explode: false
+      schema:
+        type: string
+        format: base64
+    RetryAfter:
+      name: Retry-After
+      in: header
+      description: Field indicating the time (in seconds) that the client should wait
+        before retrying an operation. The response should include this header along
+        with responses with the HTTP status code of 429 Too many requests.
+      required: false
+      style: simple
+      explode: false
+      schema:
+        minimum: 0
+        type: integer
   securitySchemes:
     OAuth2:
       type: oauth2
@@ -571,3 +956,16 @@ components:
           authorizationUrl: /oauth/authorize
           tokenUrl: /oauth/token
           scopes: {}
+    openFinanceHeaders:
+      type: apiKey
+      description: Open Finance security headers
+      name: participant-id
+      in: header
+x-global-headers:
+- $ref: '#/components/parameters/ParticipantId'
+- $ref: '#/components/parameters/ApiVersion'
+- $ref: '#/components/parameters/FapiInteractionId'
+- $ref: '#/components/parameters/FapiAuthDate'
+- $ref: '#/components/parameters/FapiCustomerIpAddress'
+- $ref: '#/components/parameters/ClientHeaders'
+- $ref: '#/components/parameters/RetryAfter'
