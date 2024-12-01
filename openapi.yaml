@@ -2,12 +2,12 @@ openapi: 3.0.3
 info:
   title: OFxPERA API
   description: Philippines Open Finance API Implementation for PERA
-  version: 0.0.1
-  
+  version: 0.0.2
+
 servers:
   # Added by API Auto Mocking Plugin
   - description: SwaggerHub API Auto Mocking
-    url: https://virtserver.swaggerhub.com/maya-ph/OFxPERA-API/0.0.1
+    url: https://virtserver.swaggerhub.com/maya-ph/OFxPERA-API/0.0.2
   - url: https://api.ofxpera.ph/v1
     description: OFxPERA API server
 
@@ -309,7 +309,7 @@ paths:
                 client_secret:
                   type: string
                   description: Client secret for the token request.
-                refresh_token: 
+                refresh_token:
                   type: string
                   description: Refresh token used to obtain a new access token.
       responses:
@@ -341,7 +341,7 @@ paths:
                     type: string
                     description: Scope of the access token.
 
-  /oauth/introspection:
+  /oauth/introspect:
     get:
       tags:
         - OAuth
